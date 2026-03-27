@@ -1,23 +1,47 @@
-# Langchain Playground
+# Agent Engine
 
-这是一个基于 Python 的多 Agent 运行 playground。
+这是一个基于 Python 的多 Agent 运行器，支持 CLI 与 Web 两种方式启动 agent。
 
-根目录只负责两件事：
+项目根目录职责：
 
-- 扫描 `agents/` 下可运行的 agent
-- 展示列表并启动你选择的 agent
+- 自动扫描 `agents/*` 下可运行的 agent
+- 在 CLI 中展示列表并启动选中的 agent
+- 在 Web 页面展示 agent 卡片，并通过浏览器终端透传对应 `main.py`
 
-同时也提供一个 Web 外壳：
+## 当前内置 Agent
 
-- 首页扫描并展示全部 agent
-- 选择 agent 后进入浏览器终端，直接透传该 agent 的 `main.py`
+- `mysql_assistant`：基于 `ChatOpenAI` 的 MySQL 工具调用式助手
+- `mysql_assistant_re_act`：基于 `create_agent + ChatAnthropic` 的 ReAct 风格 MySQL 助手
 
-每个 agent 的具体能力、依赖、环境变量和使用方式，都写在各自目录下的 `README.md` 中。
+每个 agent 的详细说明见对应目录的 `README.md`。
 
-## 当前包含的 Agent
+## 快速开始
 
-- `mysql_assistant`：基于 `ChatOpenAI`（`lib/langchain_model.py` 预配置）的工具调用式 MySQL 助手
-- `mysql_assistant_re_act`：基于 LangChain `create_agent` + `ChatAnthropic`（`lib/langchain_model.py` 预配置）的 ReAct 风格 MySQL 助手
+1. 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+2. 配置环境变量
+
+```bash
+cp .env.example .env
+```
+
+3. 启动 CLI 运行器
+
+```bash
+python main.py
+```
+
+4. 或启动 Web 外壳
+
+```bash
+python main_web.py
+```
+
+默认地址：`http://127.0.0.1:8000`
 
 ## 目录结构
 
@@ -29,140 +53,81 @@
 │   ├── index.html
 │   ├── terminal.html
 │   └── static/
-│       ├── css/
-│       │   ├── base.css
-│       │   ├── home.css
-│       │   └── terminal.css
-│       └── js/
-│           ├── api.js
-│           ├── env-editor.js
-│           ├── home.js
-│           └── terminal.js
 ├── lib/
-│   ├── agent_registry.py  # 统一扫描 agents/*/info.json 与 main.py
-│   ├── agent_runtime.py   # 统一交互运行时接口（send_message / wait_input）
-│   ├── env_loader.py      # 合并根与 agent 的 .env（进程环境优先）
-│   └── langchain_model.py # 预置 ChatOpenAI / ChatAnthropic（仅从根 .env + 进程环境读模型变量）
+│   ├── agent_registry.py
+│   ├── agent_runtime.py
+│   ├── env_loader.py
+│   └── langchain_model.py
 ├── agents/
 │   ├── mysql_assistant/
 │   │   ├── info.json
 │   │   ├── README.md
 │   │   ├── .env.example
-│   │   ├── main.py
-│   │   ├── chat_cli.py
-│   │   ├── mysql_assistant.py
-│   │   ├── mysql_ops.py
-│   │   └── tools.py
+│   │   └── main.py
 │   └── mysql_assistant_re_act/
 │       ├── info.json
 │       ├── README.md
 │       ├── .env.example
-│       ├── main.py
-│       ├── mysql_ops.py
-│       └── tools.py
+│       └── main.py
 ├── .env.example
 └── requirements.txt
 ```
 
-## 运行约定
+## 环境变量与优先级
 
-- 根目录 `main.py` 是统一入口
-- `agents/` 下每个直接子目录都可以视为一个候选 agent
-- 只有包含 `main.py` 的 agent 目录才会被自动发现
-- 每个 agent 目录都应包含 `info.json`
-- 运行器会列出全部 agent，并通过子进程启动对应入口文件
-- Web 入口 `main_web.py` 会复用同一份 agent 注册信息
-- Web 前端文件已拆分到 `web/` 下，不再内嵌在 `main_web.py` 中
+根目录 `.env` 主要放模型相关配置，agent 目录 `.env` 主要放该 agent 的 MySQL/运行开关配置。
 
-## 安装依赖
+### 根目录 `.env`（模型相关）
 
-```bash
-pip install -r requirements.txt
-```
+- OpenAI：`OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`
+- Anthropic：`ANTHROPIC_API_KEY`、`ANTHROPIC_BASE_URL`、`ANTHROPIC_API_MODEL`
 
-## 环境变量
+### 优先级（agent 运行时合并）
 
-项目根目录 `.env` 用来放公共模型配置（供 `lib/langchain_model.py` 在导入时读取）；agent 自己的 `.env` 用来放该 agent 的专属配置（例如 MySQL、运行开关等，由各 agent 在运行时通过 `load_env_config(project_root, agent_dir)` 合并）。
-
-参考示例：
-
-- 根配置：`.env.example`
-- Agent 配置：各 agent 目录下的 `.env.example`
-
-当前根 `.env.example` 里包含两套模型变量（可按需填写其一或全部）：
-
-- `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`
-- `ANTHROPIC_API_KEY`、`ANTHROPIC_BASE_URL`、`ANTHROPIC_API_MODEL`
-
-## 变量优先级
-
-对通过 `load_env_config(project_root, agent_dir)` 合并的配置（例如各 agent 里的 MySQL、运行开关），同名变量覆盖顺序如下：
+对通过 `load_env_config(project_root, agent_dir)` 合并的变量，同名覆盖顺序为：
 
 1. 进程环境变量
-2. agent 目录下的 `.env`
+2. `agents/<agent>/.env`
 3. 项目根目录 `.env`
 
-也就是说，agent 的本地配置会覆盖根配置。
+### 特别说明（模型初始化）
 
-**说明**：`lib/langchain_model.py` 在导入时只调用 `load_env_config(project_root)`，模型 API 相关变量以**项目根 `.env` 与进程环境**为准，不受 agent 目录 `.env` 覆盖。
+`lib/langchain_model.py` 在导入时读取的是 `load_env_config(project_root)`，即模型变量只受「进程环境 + 根 `.env`」影响，不会被 agent 目录 `.env` 覆盖。
 
 ## 运行方式
 
-启动统一运行器：
+### CLI 统一入口
 
 ```bash
 python main.py
 ```
 
-运行后会看到类似下面的列表：
+运行后会列出已发现的 agent，输入编号即可启动。
 
-```text
-已注册的 agents：
-1. MySQL Assistant (mysql_assistant) - 基于 ChatOpenAI 的 MySQL 工具调用式智能体。
-2. MySQL Assistant ReAct (mysql_assistant_re_act) - 基于 create_agent 和 ChatAnthropic 的 MySQL ReAct 智能体。
-```
-
-输入编号后，运行器会启动对应 agent。
-
-如果你已经确定要运行哪个 agent，也可以直接执行该 agent 目录下的 `main.py`。
-
-## Web 运行方式
-
-启动 Web 外壳：
+### 直接运行指定 Agent
 
 ```bash
-python main_web.py
+python agents/mysql_assistant/main.py
+# 或
+python agents/mysql_assistant_re_act/main.py
 ```
 
-默认监听在 `http://127.0.0.1:8000`。
-
-也支持直接传参：
+### Web 模式
 
 ```bash
-python main_web.py --host 0.0.0.0 --port 9001
+python main_web.py --host 127.0.0.1 --port 8000
 ```
 
-使用方式：
+Web 页面支持：
 
-1. 打开首页，查看自动扫描到的 agent 卡片
-2. 在首页右侧编辑项目根目录 `.env`，顶部提供“刷新 / 保存”按钮
-3. 点击一个 agent
-4. 进入浏览器终端，直接与该 agent 的 `main.py` 交互
-5. 在 agent 页面右侧编辑该 agent 目录下的 `.env`，顶部同样提供“刷新 / 保存”按钮
+- 首页展示 agent 列表
+- 在线编辑根目录 `.env`
+- 进入 agent 终端页，与 `main.py` 实时交互
+- 在线编辑该 agent 的 `.env`
 
-终端页会通过 WebSocket + PTY 透传 `stdin/stdout/stderr`，因此 `exit`、`clear` 等原有 CLI 命令保持不变。
+## 新增 Agent 规范
 
-## 新增 Agent
-
-新增 agent 时，遵循下面的约定：
-
-1. 在 `agents/` 下创建新子目录，例如 `agents/demo_agent`
-2. 在该目录中创建 `info.json`
-3. 在该目录中创建 `main.py`
-4. 在该目录中创建 `README.md`
-5. 如有专属配置，补充 `.env.example`
-
-最小结构示例：
+新增 `agents/demo_agent` 时，最少包含：
 
 ```text
 agents/
@@ -172,7 +137,7 @@ agents/
     └── main.py
 ```
 
-`info.json` 约定如下：
+`info.json` 示例：
 
 ```json
 {
@@ -182,13 +147,13 @@ agents/
 }
 ```
 
-约定说明：
+约定：
 
-- `agent_id` 建议与目录名保持一致
+- `agent_id` 建议与目录名一致
 - `name` 用于 CLI 和 Web 展示
-- `description` 用于 CLI 列表和 Web 卡片描述
+- `description` 用于列表和卡片描述
 
-## Agent 文档
+## Agent 文档入口
 
 - `agents/mysql_assistant/README.md`
 - `agents/mysql_assistant_re_act/README.md`
